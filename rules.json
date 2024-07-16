@@ -1,0 +1,17 @@
+{
+    "rules": [
+        {
+            "description": "Rule 1",
+            "predicate": "all",
+            "conditions": [
+                {"field": "From", "predicate": "contains", "value": "tenmiles.com"},
+                {"field": "Subject", "predicate": "contains", "value": "Interview"},
+                {"field": "Date received", "predicate": "less than", "value": "2", "unit": "days"}
+            ],
+            "actions": [
+                {"action": "move_message", "destination": "INBOX"},
+                {"action": "mark_as_read"}
+            ]
+        }
+    ]
+}
