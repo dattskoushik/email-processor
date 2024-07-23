@@ -1,21 +1,20 @@
-import sqlite3
-from fetch_emails import authenticate_gmail, fetch_emails
-from process_emails import setup_database, store_emails, load_rules, process_emails
+from fetch_emails import fetch_emails
+from process_emails import process_emails
 from exceptions import EmailProcessingError, DatabaseError, RuleEvaluationError
+from logger import logger
 
-def main():
+def main() -> None:
     try:
-        service = authenticate_gmail()
-        conn = sqlite3.connect('emails.db')
-        emails = fetch_emails(service)
-        setup_database(conn)
-        store_emails(conn, emails)
-        rules = load_rules()
-        process_emails(service, conn, rules)
-    except (EmailProcessingError, DatabaseError, RuleEvaluationError) as e:
-        print(f"An error occurred: {e}")
-    finally:
-        conn.close()
+        emails = fetch_emails()  # This now fetches and stores emails in the database
+        process_emails(emails)  # This now processes emails from the database
+    except EmailProcessingError as e:
+        logger.error(f"An error occurred while processing emails: {e}")
+    except DatabaseError as e:
+        logger.error(f"A database error occurred: {e}")
+    except RuleEvaluationError as e:
+        logger.error(f"An error occurred during rule evaluation: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
 
 if __name__ == '__main__':
     main()
