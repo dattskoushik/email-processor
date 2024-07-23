@@ -9,6 +9,7 @@ from typing import List, Dict
 import os
 import json
 from database import EmailDatabase
+import base64
 
 SCOPES: List[str] = ['https://www.googleapis.com/auth/gmail.modify']
 
@@ -58,10 +59,12 @@ def fetch_emails() -> List[Dict]:
             msg = service.users().messages().get(userId='me', id=message['id']).execute()
             email_data = {
                 'id': msg['id'],
-                'sender': next((header['value'] for header in msg['payload']['headers'] if header['name'] == 'From'), ''),
-                'subject': next((header['value'] for header in msg['payload']['headers'] if header['name'] == 'Subject'), ''),
-                'date': next((header['value'] for header in msg['payload']['headers'] if header['name'] == 'Date'), ''),
-                'snippet': msg['snippet']
+                'sender': next((header['value'] for header in msg['payload']['headers'] if header['name'].lower() == 'from'), ''),
+                'recipient': next((header['value'] for header in msg['payload']['headers'] if header['name'].lower() == 'to'), ''),
+                'subject': next((header['value'] for header in msg['payload']['headers'] if header['name'].lower() == 'subject'), ''),
+                'date': next((header['value'] for header in msg['payload']['headers'] if header['name'].lower() == 'date'), ''),
+                'message': get_email_body(msg),
+                'is_read': 'UNREAD' not in msg['labelIds']
             }
             detailed_emails.append(email_data)
 
@@ -75,6 +78,33 @@ def fetch_emails() -> List[Dict]:
     except HttpError as error:
         logger.error(f"Error fetching emails: {error}")
         raise EmailProcessingError(f"Error fetching emails: {error}")
+
+def get_email_body(msg):
+    if 'parts' in msg['payload']:
+        for part in msg['payload']['parts']:
+            if part['mimeType'] == 'text/plain':
+                return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+    elif 'body' in msg['payload']:
+        return base64.urlsafe_b64decode(msg['payload']['body']['data']).decode('utf-8')
+    return ''
+
+def mark_as_read(service, email_id: str, read: bool = True):
+    labels_to_add = []
+    labels_to_remove = ['UNREAD'] if read else []
+    if not read:
+        labels_to_add = ['UNREAD']
+    service.users().messages().modify(
+        userId='me',
+        id=email_id,
+        body={'addLabelIds': labels_to_add, 'removeLabelIds': labels_to_remove}
+    ).execute()
+
+def move_message(service, email_id: str, destination_label: str):
+    service.users().messages().modify(
+        userId='me',
+        id=email_id,
+        body={'addLabelIds': [destination_label]}
+    ).execute()
 
 if __name__ == '__main__':
     emails = fetch_emails()
